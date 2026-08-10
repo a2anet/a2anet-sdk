@@ -3,6 +3,7 @@
     "release-type": "node",
     "packages": {
         "packages/react": {
+            "initial-version": "0.1.0",
             "package-name": "@a2anet/react",
             "changelog-path": "CHANGELOG.md",
             "extra-files": ["src/index.ts"]

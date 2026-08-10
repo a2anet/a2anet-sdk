@@ -11,14 +11,21 @@
     },
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
-    "files": ["dist"],
+    "files": [
+        "dist"
+    ],
     "scripts": {
         "build": "tsc",
         "typecheck": "tsc --noEmit",
         "test": "bun test",
         "test:coverage": "bun test --coverage"
     },
-    "keywords": ["a2a", "agents", "react", "sdk"],
+    "keywords": [
+        "a2a",
+        "agents",
+        "react",
+        "sdk"
+    ],
     "author": "A2A Net <hello@a2anet.com>",
     "license": "Apache-2.0",
     "repository": {

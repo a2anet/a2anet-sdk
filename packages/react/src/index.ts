@@ -2,4 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+export * from "./agent.js";
+export * from "./artifacts.js";
+export * from "./provider.js";
+
 export const VERSION = "0.0.0"; // x-release-please-version

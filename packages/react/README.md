@@ -68,9 +68,3 @@ minting implementation; keep the authority used to mint credentials on your back
 
 The package root also exports `A2ANetAgent`, `AG_UI_ARTIFACT_EVENT_NAME`,
 `ReceivedArtifactFile`, and `readArtifactEvent` for lower-level integrations and artifact handling.
-
-With Bun:
-
-```bash
-bun add @a2anet/react @ag-ui/client @copilotkit/react-core react react-dom
-```

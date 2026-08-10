@@ -180,6 +180,47 @@ describe("A2ANetAgent", () => {
         expect(agent.hasCancelableRun).toBe(false);
     });
 
+    test("replaces existing local state when replaying a durable thread", async () => {
+        const events: BaseEvent[] = [
+            {
+                type: EventType.RUN_STARTED,
+                threadId: "thread-1",
+                runId: "run-1",
+                input: {
+                    ...input,
+                    messages: [input.messages[0]],
+                },
+            },
+            {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: "assistant-1",
+                role: "assistant",
+            },
+            {
+                type: EventType.TEXT_MESSAGE_CONTENT,
+                messageId: "assistant-1",
+                delta: "first answer",
+            },
+            { type: EventType.TEXT_MESSAGE_END, messageId: "assistant-1" },
+            { type: EventType.RUN_FINISHED, threadId: "thread-1", runId: "run-1" },
+        ];
+        const agent = makeAgent(() => Promise.resolve(eventResponse(events)));
+        agent.threadId = "thread-1";
+        agent.setMessages([
+            input.messages[0],
+            { id: "assistant-1", role: "assistant", content: "first answer" },
+        ]);
+        agent.setState({ stale: true });
+
+        await agent.connectAgent();
+
+        expect(agent.messages).toEqual([
+            input.messages[0],
+            { id: "assistant-1", role: "assistant", content: "first answer" },
+        ]);
+        expect(agent.state).toEqual({});
+    });
+
     test("cancels a run discovered during reconnection", async () => {
         const pending = pendingResponse();
         const calls: FetchCall[] = [];

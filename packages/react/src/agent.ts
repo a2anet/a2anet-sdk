@@ -112,6 +112,16 @@ export class A2ANetAgent extends HttpAgent {
         super.abortRun();
     }
 
+    /** Clear local thread state before AG-UI prepares its durable replay applier. */
+    override connectAgent(
+        ...args: Parameters<HttpAgent["connectAgent"]>
+    ): ReturnType<HttpAgent["connectAgent"]> {
+        this.setMessages([]);
+        this.setState({});
+        this.pendingInterrupts = [];
+        return super.connectAgent(...args);
+    }
+
     /** Reconnect to a durable thread and replay its event history. */
     protected override connect(input: RunAgentInput): ReturnType<HttpAgent["run"]> {
         const stream: ActiveStream = { threadId: input.threadId };

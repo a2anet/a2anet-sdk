@@ -52,18 +52,6 @@ export function Root() {
 Mount the provider above anything that can unmount, such as a drawer. It holds the agent,
 which owns the conversation.
 
-## Context
-
-Pass `getContext` to tell the agent what the user is looking at. It is read on every run, so
-it can return whatever the current page holds:
-
-```tsx
-<A2ANetProvider getCredentials={getCredentials} getContext={() => ({ "venue-name": venue })}>
-```
-
-Context values are prepended to the user's message. The agent sees them and they stay in its
-session, but they are not saved to the AG-UI transcript that the user sees.
-
 ## Rendering the chat
 
 `useA2ANet` returns the properties CopilotKit needs, plus the credential's status. The SDK
@@ -135,3 +123,15 @@ function Chat({ agentId, threadId }: { agentId: string; threadId: string }) {
     return <CopilotChat agentId={agentId} threadId={threadId} messageView={{ assistantMessage }} />;
 }
 ```
+
+## Context
+
+Pass `getContext` to tell the agent what the user is looking at. It is read on every run, so
+it can return whatever the current page holds:
+
+```tsx
+<A2ANetProvider getCredentials={getCredentials} getContext={() => ({ "venue-name": venue })}>
+```
+
+Context values are prepended to the user's message. The agent sees them and they stay in its
+session, but they are not saved to the AG-UI transcript that the user sees.

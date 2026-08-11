@@ -12,7 +12,7 @@ import {
 } from "@ag-ui/client";
 import { lastValueFrom, toArray } from "rxjs";
 
-import { A2ANetAgent } from "../src/index.js";
+import { A2ANetAgent, type A2ANetRunContext } from "../src/index.js";
 
 interface FetchCall {
     url: string;
@@ -70,10 +70,11 @@ function eventResponse(events: BaseEvent[]): Response {
     });
 }
 
-function makeAgent(fetch: HttpAgentFetchFn): A2ANetAgent {
+function makeAgent(fetch: HttpAgentFetchFn, getContext?: () => A2ANetRunContext): A2ANetAgent {
     const agent = new A2ANetAgent({
         agentId: "agent-1",
         url: "https://runtime.example/agent-1/ag-ui",
+        getContext,
     });
     agent.fetch = fetch;
     return agent;
@@ -94,6 +95,50 @@ describe("A2ANetAgent", () => {
         expect(body.messages).toEqual([input.messages[2]]);
         expect(agent.messages).toEqual([]);
         expect(input.messages).toHaveLength(3);
+        subscription.unsubscribe();
+    });
+
+    test("sends the caller's context beside the conversation, reading it per run", () => {
+        const pending = pendingResponse();
+        const calls: FetchCall[] = [];
+        let venue = "The Ivy";
+        const agent = makeAgent(
+            (url, init) => {
+                calls.push({ url, init });
+                return Promise.resolve(pending.response);
+            },
+            () => ({ "venue-name": venue, today: "2026-08-11", zone: "", floor: null }),
+        );
+
+        const first = agent.run(input).subscribe({ error: () => {} });
+        venue = "The Wolseley";
+        const second = agent.run(input).subscribe({ error: () => {} });
+
+        // Empty values are dropped, so a caller passes its page straight through.
+        expect((JSON.parse(String(calls[0].init.body)) as RunAgentInput).context).toEqual([
+            { description: "venue-name", value: "The Ivy" },
+            { description: "today", value: "2026-08-11" },
+        ]);
+        expect((JSON.parse(String(calls[1].init.body)) as RunAgentInput).context).toContainEqual({
+            description: "venue-name",
+            value: "The Wolseley",
+        });
+
+        first.unsubscribe();
+        second.unsubscribe();
+    });
+
+    test("leaves a run untouched when the caller supplies no context", () => {
+        const pending = pendingResponse();
+        const calls: FetchCall[] = [];
+        const agent = makeAgent((url, init) => {
+            calls.push({ url, init });
+            return Promise.resolve(pending.response);
+        });
+
+        const subscription = agent.run(input).subscribe({ error: () => {} });
+
+        expect((JSON.parse(String(calls[0].init.body)) as RunAgentInput).context).toEqual([]);
         subscription.unsubscribe();
     });
 
@@ -177,7 +222,10 @@ describe("A2ANetAgent", () => {
         expect(calls[0].url).toBe("https://runtime.example/agent-1/ag-ui/connect");
         expect(JSON.parse(String(calls[0].init.body))).toMatchObject({ threadId: "thread-1" });
         expect(agent.messages).toEqual(messages);
-        expect(agent.hasCancelableRun).toBe(false);
+
+        // A finished replay leaves nothing to stop, so Stop issues no request.
+        await agent.cancelRun();
+        expect(calls).toHaveLength(1);
     });
 
     test("replaces existing local state when replaying a durable thread", async () => {
@@ -323,7 +371,10 @@ describe("A2ANetAgent", () => {
             "https://runtime.example/agent-1/ag-ui/cancel",
         ]);
         expect(calls[0].init.signal?.aborted).toBe(true);
-        expect(agent.hasCancelableRun).toBe(false);
+
+        // The run is already cancelled, so a second Stop issues no further request.
+        await agent.cancelRun();
+        expect(calls).toHaveLength(2);
         subscription.unsubscribe();
     });
 
@@ -341,7 +392,6 @@ describe("A2ANetAgent", () => {
         await lastValueFrom(agent.run(input).pipe(toArray()));
         await agent.cancelRun();
 
-        expect(agent.hasCancelableRun).toBe(false);
         expect(calls.map(({ url }) => url)).toEqual(["https://runtime.example/agent-1/ag-ui"]);
     });
 

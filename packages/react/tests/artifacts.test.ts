@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from "bun:test";
 
-import { AG_UI_ARTIFACT_EVENT_NAME, readArtifactEvent } from "../src/index.js";
+import { AG_UI_ARTIFACT_EVENT_NAME, artifactObjectUrl, readArtifactEvent } from "../src/index.js";
 
 const event = (artifact: Record<string, unknown>, mimeType = "text/csv") => ({
     filename: "report.csv",
@@ -41,5 +41,15 @@ describe("A2A Net artifacts", () => {
         expect(readArtifactEvent(undefined)).toBeNull();
         expect(readArtifactEvent({ artifact: "invalid" })).toBeNull();
         expect(readArtifactEvent(event({ text: "already in the transcript" }))).toBeNull();
+    });
+
+    test("decodes the URL-safe base64 ADK serialises bytes as", () => {
+        // "+" and "/" arrive as "-" and "_", which `atob` rejects outright.
+        const bytes = btoa(String.fromCharCode(0xfb, 0xff, 0xbf))
+            .replace(/\+/g, "-")
+            .replace(/\//g, "_");
+
+        expect(() => atob(bytes)).toThrow();
+        expect(artifactObjectUrl(bytes, "text/csv")).toStartWith("blob:");
     });
 });

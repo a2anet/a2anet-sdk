@@ -29,12 +29,29 @@ interface ActiveStream {
     runId?: string;
 }
 
+/**
+ * Ambient facts about the user's current situation, sent with every run.
+ *
+ * Empty values are dropped, so a caller can pass whatever its current page holds
+ * without filtering first.
+ */
+export type A2ANetRunContext = Record<string, string | number | boolean | null | undefined>;
+
 /** Configuration for an A2A Net AG-UI endpoint. */
-export type A2ANetAgentConfig = Omit<HttpAgentConfig, "fetch">;
+export interface A2ANetAgentConfig extends HttpAgentConfig {
+    getContext?: () => A2ANetRunContext;
+}
 
 function trailingUserTurn(input: RunAgentInput): RunAgentInput {
     const message = input.messages.findLast(({ role }) => role === "user");
     return { ...input, messages: message ? [message] : [] };
+}
+
+function withContext(input: RunAgentInput, context: A2ANetRunContext | undefined): RunAgentInput {
+    const entries = Object.entries(context ?? {})
+        .filter(([, value]) => value !== undefined && value !== null && value !== "")
+        .map(([description, value]) => ({ description, value: String(value) }));
+    return entries.length > 0 ? { ...input, context: [...input.context, ...entries] } : input;
 }
 
 function hasIdentity(event: BaseEvent): event is BaseEvent & { threadId: string; runId: string } {
@@ -53,16 +70,12 @@ export class A2ANetAgent extends HttpAgent {
     private activeStream?: ActiveStream;
     private readonly cachedMessages = new Map<string, Message[]>();
     private readonly pendingRestores = new Map<string, Message[]>();
+    private readonly getContext?: () => A2ANetRunContext;
 
-    /** Create an agent without exposing a package-specific fetch configuration API. */
-    // biome-ignore lint/complexity/noUselessConstructor: Narrows HttpAgentConfig to A2ANetAgentConfig.
-    constructor(config: A2ANetAgentConfig) {
+    /** Create an agent that reads the caller's current context on every run. */
+    constructor({ getContext, ...config }: A2ANetAgentConfig) {
         super(config);
-    }
-
-    /** Whether the agent knows a durable run that can currently be cancelled. */
-    get hasCancelableRun(): boolean {
-        return this.activeRun !== undefined;
+        this.getContext = getContext;
     }
 
     /** Retain completed and streaming messages for fast in-session thread restoration. */
@@ -72,7 +85,7 @@ export class A2ANetAgent extends HttpAgent {
         this.cacheMessages(this.threadId, this.messages);
     }
 
-    /** Run the latest user turn while retaining the full transcript locally. */
+    /** Run the latest user turn, with the caller's context, retaining the transcript. */
     override run(input: RunAgentInput): ReturnType<HttpAgent["run"]> {
         const stream: ActiveStream = { threadId: input.threadId, runId: input.runId };
         const activeRun = { threadId: input.threadId, runId: input.runId };
@@ -80,7 +93,7 @@ export class A2ANetAgent extends HttpAgent {
         this.activeStream = stream;
         this.activeRun = activeRun;
 
-        return super.run(trailingUserTurn(input)).pipe(
+        return super.run(trailingUserTurn(withContext(input, this.getContext?.()))).pipe(
             filter((event) => this.acceptsEvent(stream, event)),
             tap((event) => this.trackRunEvent(event)),
             finalize(() => {

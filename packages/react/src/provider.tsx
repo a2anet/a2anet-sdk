@@ -16,9 +16,10 @@ import {
     useState,
 } from "react";
 
-import { A2ANetAgent } from "./agent.js";
+import { A2ANetAgent, type A2ANetRunContext } from "./agent.js";
 
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
+const RETRY_DELAY_MS = 30 * 1000;
 
 /** Credentials minted by an application's backend for direct A2A Net access. */
 export interface A2ANetCredentials {
@@ -50,12 +51,16 @@ export type A2ANetStatus = (typeof A2ANetStatus)[keyof typeof A2ANetStatus];
 export interface A2ANetProviderProps {
     children: ReactNode;
     getCredentials: () => Promise<A2ANetCredentials>;
+    /** Read on every run, so a caller may return whatever its current page holds. */
+    getContext?: () => A2ANetRunContext;
 }
 
 /** Values exposed by {@link useA2ANet}. */
 export interface A2ANetContextValue {
+    agent: A2ANetAgent | null;
     copilotKitProps: A2ANetCopilotKitProps;
     status: A2ANetStatus;
+    /** A failed refresh reports its error while the current credential keeps working. */
     error: Error | null;
     retry: () => void;
 }
@@ -91,8 +96,13 @@ function agentUrl(credentials: A2ANetCredentials): string {
  * The provider only supplies integration state; it always renders its children and
  * never mounts CopilotKit or application UI itself.
  */
-export function A2ANetProvider({ children, getCredentials }: A2ANetProviderProps): ReactElement {
+export function A2ANetProvider({
+    children,
+    getCredentials,
+    getContext,
+}: A2ANetProviderProps): ReactElement {
     const agentRef = useRef<A2ANetAgent | null>(null);
+    const getContextRef = useRef(getContext);
     const [attempt, setAttempt] = useState(0);
     const [state, setState] = useState<ProviderState>({
         agent: null,
@@ -104,6 +114,12 @@ export function A2ANetProvider({ children, getCredentials }: A2ANetProviderProps
     const retry = useCallback((): void => {
         setAttempt((current) => current + 1);
     }, []);
+
+    // Held in a ref so the agent reads the newest context on every run without the
+    // provider having to rebuild it whenever the caller's page changes.
+    useEffect(() => {
+        getContextRef.current = getContext;
+    }, [getContext]);
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: attempt intentionally triggers retries.
     useEffect(() => {
@@ -131,6 +147,7 @@ export function A2ANetProvider({ children, getCredentials }: A2ANetProviderProps
                         agentId: credentials.agentId,
                         url: agentUrl(credentials),
                         headers,
+                        getContext: () => getContextRef.current?.() ?? {},
                     });
                 agentRef.current = agent;
                 agent.agentId = credentials.agentId;
@@ -146,11 +163,15 @@ export function A2ANetProvider({ children, getCredentials }: A2ANetProviderProps
                 timer = setTimeout(() => void load(false), delay);
             } catch (value) {
                 if (!active) return;
+                // A background refresh runs while the current credential still works, so
+                // a failed one reports its error and tries again rather than tearing the
+                // conversation down. Only a caller with nothing to fall back on is broken.
                 setState((current) => ({
                     ...current,
-                    status: A2ANetStatus.Error,
+                    status: showLoading ? A2ANetStatus.Error : current.status,
                     error: errorFrom(value),
                 }));
+                timer = setTimeout(() => void load(showLoading), RETRY_DELAY_MS);
             }
         };
 
@@ -179,12 +200,13 @@ export function A2ANetProvider({ children, getCredentials }: A2ANetProviderProps
     }, [agent, credentials, selfManagedAgents]);
     const context = useMemo<A2ANetContextValue>(
         () => ({
+            agent,
             copilotKitProps,
             status: state.status,
             error: state.error,
             retry,
         }),
-        [copilotKitProps, retry, state.error, state.status],
+        [agent, copilotKitProps, retry, state.error, state.status],
     );
 
     return createElement(A2ANetContext.Provider, { value: context }, children);

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { afterEach, describe, expect, test } from "bun:test";
+import type { RunAgentInput } from "@ag-ui/client";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -25,6 +26,15 @@ const credentials = (overrides: Partial<A2ANetCredentials> = {}): A2ANetCredenti
     runtimeUrl: "https://runtime.example",
     ...overrides,
 });
+
+const runInput: RunAgentInput = {
+    threadId: "thread-1",
+    runId: "run-1",
+    messages: [{ id: "user-1", role: "user", content: "hello" }],
+    tools: [],
+    context: [],
+    state: {},
+};
 
 let current: A2ANetContextValue | undefined;
 
@@ -59,7 +69,6 @@ describe("A2ANetProvider", () => {
 
         await waitFor(() => expect(current?.status).toBe(A2ANetStatus.Ready));
         const props = current?.copilotKitProps;
-        const agent = props?.selfManagedAgents?.["agent-1"] as A2ANetAgent | undefined;
 
         expect(props).toMatchObject({
             runtimeUrl: "https://runtime.example",
@@ -67,9 +76,40 @@ describe("A2ANetProvider", () => {
             headers: { Authorization: "Bearer token-1" },
             useSingleEndpoint: false,
         });
-        expect(agent?.url).toBe("https://runtime.example/agent-1/ag-ui");
-        expect(agent?.headers).toEqual({ Authorization: "Bearer token-1" });
+        // The same instance the caller reads directly, so nobody rebuilds their own.
+        expect(props?.selfManagedAgents?.["agent-1"]).toBe(current?.agent as A2ANetAgent);
+        expect(current?.agent?.url).toBe("https://runtime.example/agent-1/ag-ui");
+        expect(current?.agent?.headers).toEqual({ Authorization: "Bearer token-1" });
         expect(current?.error).toBeNull();
+    });
+
+    test("reads the newest context on every run without replacing the agent", async () => {
+        let venue = "The Ivy";
+        render(
+            <A2ANetProvider
+                getCredentials={() => Promise.resolve(credentials())}
+                getContext={() => ({ "venue-name": venue })}
+            >
+                <Probe />
+            </A2ANetProvider>,
+        );
+
+        await waitFor(() => expect(current?.status).toBe(A2ANetStatus.Ready));
+        const agent = current?.agent;
+        const calls: RunAgentInput[] = [];
+        // biome-ignore lint/suspicious/noExplicitAny: Narrowing the fetch stub is not the point.
+        (agent as any).fetch = (_url: string, init: RequestInit) => {
+            calls.push(JSON.parse(String(init.body)) as RunAgentInput);
+            return new Promise<Response>(() => {});
+        };
+
+        agent?.run(runInput).subscribe({ error: () => {} });
+        venue = "The Wolseley";
+        agent?.run(runInput).subscribe({ error: () => {} });
+
+        expect(calls[0].context).toEqual([{ description: "venue-name", value: "The Ivy" }]);
+        expect(calls[1].context).toEqual([{ description: "venue-name", value: "The Wolseley" }]);
+        expect(current?.agent).toBe(agent);
     });
 
     test("exposes credential failures and retries explicitly", async () => {
@@ -131,7 +171,7 @@ describe("A2ANetProvider", () => {
         expect(firstAgent?.headers).toEqual({ Authorization: "Bearer token-2" });
     });
 
-    test("retains the agent and provider properties when refresh fails", async () => {
+    test("keeps a working conversation up when a refresh fails", async () => {
         let calls = 0;
         const getCredentials = (): Promise<A2ANetCredentials> => {
             calls += 1;
@@ -149,14 +189,30 @@ describe("A2ANetProvider", () => {
             </A2ANetProvider>,
         );
 
-        await waitFor(() => expect(current?.status).toBe(A2ANetStatus.Error));
-        const agent = current?.copilotKitProps.selfManagedAgents?.["agent-1"];
-        expect(current?.error?.message).toBe("refresh failed");
+        await waitFor(() => expect(current?.status).toBe(A2ANetStatus.Ready));
+        const agent = current?.agent;
+        // The failed refresh reports itself, but the credential it replaces is still
+        // valid, so the caller keeps a usable agent rather than an error screen.
+        await waitFor(() => expect(current?.error?.message).toBe("refresh failed"));
+        expect(current?.status).toBe(A2ANetStatus.Ready);
         expect(current?.copilotKitProps.headers).toEqual({ Authorization: "Bearer token-1" });
 
         act(() => current?.retry());
-        await waitFor(() => expect(current?.status).toBe(A2ANetStatus.Ready));
-        expect(current?.copilotKitProps.selfManagedAgents?.["agent-1"]).toBe(agent);
-        expect(current?.copilotKitProps.headers).toEqual({ Authorization: "Bearer token-3" });
+        await waitFor(() =>
+            expect(current?.copilotKitProps.headers).toEqual({ Authorization: "Bearer token-3" }),
+        );
+        expect(current?.agent).toBe(agent);
+        expect(current?.error).toBeNull();
+    });
+
+    test("reports an error when the first load fails, with nothing to fall back on", async () => {
+        render(
+            <A2ANetProvider getCredentials={() => Promise.reject(new Error("mint failed"))}>
+                <Probe />
+            </A2ANetProvider>,
+        );
+
+        await waitFor(() => expect(current?.status).toBe(A2ANetStatus.Error));
+        expect(current?.agent).toBeNull();
     });
 });

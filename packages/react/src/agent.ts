@@ -17,7 +17,7 @@ import {
 } from "@ag-ui/client";
 import { type Observable, filter, finalize, tap } from "rxjs";
 
-const MAX_CACHED_THREADS = 20;
+const MAX_CACHED_THREADS = 10;
 
 interface ActiveRun {
     threadId: string;

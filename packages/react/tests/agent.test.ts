@@ -221,6 +221,54 @@ describe("A2ANetAgent", () => {
         expect(agent.state).toEqual({});
     });
 
+    test("shows cached thread messages while durable history reconnects", async () => {
+        const pending = pendingResponse();
+        const calls: FetchCall[] = [];
+        const cachedMessages = [
+            { id: "user-1", role: "user" as const, content: "cached question" },
+            { id: "assistant-1", role: "assistant" as const, content: "cached answer" },
+        ];
+        const durableMessages = [
+            ...cachedMessages,
+            { id: "user-2", role: "user" as const, content: "new question" },
+        ];
+        const agent = makeAgent((url, init) => {
+            calls.push({ url, init });
+            return Promise.resolve(pending.response);
+        });
+        agent.threadId = "thread-1";
+        agent.setMessages(cachedMessages);
+        agent.threadId = "thread-2";
+        agent.setMessages([{ id: "other", role: "user", content: "other thread" }]);
+        agent.threadId = "thread-1";
+        agent.setMessages([]);
+
+        const connection = agent.connectAgent();
+
+        expect(agent.messages).toEqual(cachedMessages);
+        await Bun.sleep(0);
+        expect(JSON.parse(String(calls[0].init.body))).toMatchObject({ messages: [] });
+
+        writeEvent(pending.controller, {
+            type: EventType.RUN_STARTED,
+            threadId: "thread-1",
+            runId: "run-1",
+        });
+        writeEvent(pending.controller, {
+            type: EventType.MESSAGES_SNAPSHOT,
+            messages: durableMessages,
+        });
+        writeEvent(pending.controller, {
+            type: EventType.RUN_FINISHED,
+            threadId: "thread-1",
+            runId: "run-1",
+        });
+        pending.controller.close();
+        await connection;
+
+        expect(agent.messages).toEqual(durableMessages);
+    });
+
     test("cancels a run discovered during reconnection", async () => {
         const pending = pendingResponse();
         const calls: FetchCall[] = [];

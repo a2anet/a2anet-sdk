@@ -4,7 +4,6 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import type { RunAgentInput } from "@ag-ui/client";
-import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 
@@ -16,8 +15,6 @@ import {
     A2ANetStatus,
     useA2ANet,
 } from "../src/index.js";
-
-GlobalRegistrator.register();
 
 const credentials = (overrides: Partial<A2ANetCredentials> = {}): A2ANetCredentials => ({
     token: "token-1",

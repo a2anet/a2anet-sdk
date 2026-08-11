@@ -1,14 +1,19 @@
 # `@a2anet/react`
 
-React SDK for [A2A Net](https://a2anet.com).
+React SDK for [A2A Net](https://a2anet.com). It connects your app to an agent and gives
+[CopilotKit](https://www.copilotkit.ai/) everything it needs to render the conversation.
 
-## Quick start
+## Install
 
 ```bash
-npm install @a2anet/react @ag-ui/client @copilotkit/react-core react react-dom
+npm install @a2anet/react @ag-ui/client @copilotkit/react-core
 ```
 
-Credentials must be minted by your application's backend. Pass a stable callback that returns:
+## Credentials
+
+The browser talks to the agent directly, using a short-lived credential your backend mints
+with your A2A Net API key. Add an endpoint that authenticates the user, mints a customer
+token, and returns it along with the agent it is for:
 
 ```ts
 {
@@ -19,18 +24,23 @@ Credentials must be minted by your application's backend. Pass a stable callback
 }
 ```
 
-Mount the A2A Net provider around your application:
+`A2ANetProvider` calls `getCredentials` on mount and again before `expiresAt`. Send whatever
+your backend needs to authenticate the user, the same as any other request to it:
 
 ```tsx
+import { useCallback } from "react";
 import { A2ANetProvider, type A2ANetCredentials } from "@a2anet/react";
 
-async function getCredentials(): Promise<A2ANetCredentials> {
-    const response = await fetch("/api/a2anet/credentials", { method: "POST" });
-    if (!response.ok) throw new Error(`Credential request failed with ${response.status}`);
-    return response.json();
-}
-
 export function Root() {
+    const getCredentials = useCallback(async (): Promise<A2ANetCredentials> => {
+        const response = await fetch("/api/a2anet/credentials", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${await getAccessToken()}` },
+        });
+        if (!response.ok) throw new Error(`Credential request failed with ${response.status}`);
+        return response.json();
+    }, []);
+
     return (
         <A2ANetProvider getCredentials={getCredentials}>
             <App />
@@ -39,21 +49,25 @@ export function Root() {
 }
 ```
 
-## Current context
+Mount the provider above anything that can unmount, such as a drawer. It holds the agent,
+which owns the conversation.
 
-Pass `getContext` to tell the agent where the user is. It is read on every run, so it
-may return whatever the current page holds, and empty values are dropped:
+## Context
+
+Pass `getContext` to tell the agent what the user is looking at. It is read on every run, so
+it can return whatever the current page holds:
 
 ```tsx
 <A2ANetProvider getCredentials={getCredentials} getContext={() => ({ "venue-name": venue })}>
 ```
 
-The runtime opens the user's turn with these facts and keeps them in the agent's
-session. They never enter the transcript the browser renders or replays, so the user
-does not see them and no application has to strip them back out.
+Context values are prepended to the user's message. The agent sees them and they stay in its
+session, but they are not saved to the AG-UI transcript that the user sees.
 
-Inside the provider, spread the returned properties onto CopilotKit. A2A Net does not mount
-CopilotKit or choose loading and error UI for the application:
+## Rendering the chat
+
+`useA2ANet` returns the properties CopilotKit needs, plus the credential's status. The SDK
+does not mount CopilotKit, so the loading and error UI stay yours:
 
 ```tsx
 import { CopilotChat, CopilotKitProvider } from "@copilotkit/react-core/v2";
@@ -75,25 +89,49 @@ export function App() {
 }
 ```
 
-`A2ANetProvider` refreshes the credential before `expiresAt` and updates CopilotKit without
-replacing the agent or its local transcript. A failed refresh reports itself through `error`
-and retries, leaving `status` on `ready` while the current credential still works, so a
-transient outage never tears down a live conversation. Mount the provider above whatever can
-unmount — the agent holds the thread and its cached transcripts. The SDK deliberately contains
-no server-side token minting implementation; keep the authority used to mint credentials on
-your backend.
-
 ## Artifacts
 
-`useA2ANetArtifacts` collects the files an agent produces, keyed by the message each one
-followed, and clears them when the thread changes:
+Files the agent produces arrive as events rather than messages, so render them yourself.
+`useA2ANetArtifacts` collects them, keyed by the message each one followed, and
+`downloadArtifact` saves one. Render this inside `CopilotKitProvider`:
 
 ```tsx
-const { agent } = useA2ANet();
-const artifacts = useA2ANetArtifacts(agent, threadId);
-const files = artifacts.get(message.id) ?? [];
-```
+import { useMemo } from "react";
+import { downloadArtifact, useA2ANetArtifacts } from "@a2anet/react";
+import {
+    CopilotChat,
+    CopilotChatAssistantMessage,
+    useAgent,
+    type CopilotChatAssistantMessageProps,
+} from "@copilotkit/react-core/v2";
 
-`downloadArtifact(file)` saves one through the browser's download flow, and
-`artifactObjectUrl` builds a URL from an artifact's bytes. `readArtifactEvent` and
-`AG_UI_ARTIFACT_EVENT_NAME` are exported for integrations that collect files themselves.
+function Chat({ agentId, threadId }: { agentId: string; threadId: string }) {
+    const { agent } = useAgent({ agentId, updates: [] });
+    const artifacts = useA2ANetArtifacts(agent, threadId);
+
+    // Object.assign carries over the slot's static members, which its type requires.
+    const assistantMessage = useMemo(
+        () =>
+            Object.assign(
+                (props: CopilotChatAssistantMessageProps) => (
+                    <>
+                        <CopilotChatAssistantMessage {...props} />
+                        {(artifacts.get(props.message.id) ?? []).map((file) => (
+                            <button
+                                key={file.id}
+                                type="button"
+                                onClick={() => downloadArtifact(file)}
+                            >
+                                {file.filename}
+                            </button>
+                        ))}
+                    </>
+                ),
+                CopilotChatAssistantMessage,
+            ),
+        [artifacts],
+    );
+
+    return <CopilotChat agentId={agentId} threadId={threadId} messageView={{ assistantMessage }} />;
+}
+```

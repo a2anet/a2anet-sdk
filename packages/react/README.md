@@ -52,6 +52,9 @@ export function Root() {
 Mount the provider above anything that can unmount, such as a drawer. It holds the agent,
 which owns the conversation.
 
+A working endpoint and provider, ready to copy, are in
+[`examples/website-app`](../../examples/website-app).
+
 ## Rendering the chat
 
 `useA2ANet` returns the properties CopilotKit needs, plus the credential's status. The SDK

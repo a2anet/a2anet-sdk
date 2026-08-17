@@ -15,20 +15,20 @@
  * the web `Request`/`Response` types (Next.js route handlers, Hono, Bun.serve).
  */
 
+const A2ANET_API_URL = "https://app.a2anet.com/api/v1";
+
 /** Exactly what `@a2anet/react`'s `getCredentials` has to resolve to. */
 export interface AgentToken {
     token: string;
     expiresAt: string;
     agentId: string;
-    runtimeUrl: string;
 }
 
 /**
  * Per-customer values the agent's tools resolve at run time.
  *
- * Variables reach the agent's session; secrets never do. Use them to hand the
- * agent this customer's own access to your API, so it acts as them rather than
- * as you.
+ * Use them to hand the agent this customer's own access to your API, so it acts
+ * as them rather than as you.
  */
 export interface RequestValues {
     variables?: Record<string, string>;
@@ -53,9 +53,8 @@ export async function mintAgentToken(
     values: RequestValues = {},
 ): Promise<AgentToken> {
     const agentId = env("A2ANET_AGENT_ID");
-    const runtimeUrl = env("A2ANET_RUNTIME_URL");
 
-    const response = await fetch(`${env("A2ANET_API_URL")}/customer-tokens`, {
+    const response = await fetch(`${A2ANET_API_URL}/customer-tokens`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${env("A2ANET_API_KEY")}`,
@@ -69,7 +68,7 @@ export async function mintAgentToken(
     }
 
     const minted = (await response.json()) as { token: string; expiresAt: string };
-    return { ...minted, agentId, runtimeUrl };
+    return { ...minted, agentId };
 }
 
 /** Resolves the signed-in user, or null when the request carries no session. */

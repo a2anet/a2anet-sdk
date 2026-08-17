@@ -1,58 +1,65 @@
 # Website/App example
 
-Publishing an A2A Net agent inside your own product: one backend endpoint, and one
-React provider.
+Publishing an A2A Net agent inside your own product: one backend endpoint, one
+React provider, and a runnable app around them.
 
 ## The contract
 
-The browser talks to the agent directly, so it needs a credential of its own. Your
-backend mints one with your A2A Net API key, which never leaves the server:
+For performance reasons, the chat sidebar connects to A2A Net from the browser
+without going through a server-side endpoint or proxy. For browsers to
+authenticate with A2A Net, they use a short-lived JWT token.
+
+Your backend mints one with your A2A Net API key, which never leaves the server:
 
 ```ts
 {
     token: string;
     expiresAt: string;
     agentId: string;
-    runtimeUrl: string;
 }
 ```
 
-`A2ANetProvider` calls `getCredentials` on mount and again before `expiresAt`, so a
-conversation outlives any single token.
+`A2ANetProvider` calls `getCredentials` on mount and again before `expiresAt`.
 
 ## Files
 
-| File                        | What it is                                                   |
-| --------------------------- | ------------------------------------------------------------ |
-| `server/agent-token.ts`     | `POST /agent/token`. Authenticates the user, mints the token |
-| `src/AssistantProvider.tsx` | `A2ANetProvider` + `useA2ANet` + CopilotKit                  |
+| File                        | What it is                                                    |
+| --------------------------- | ------------------------------------------------------------- |
+| `server/agent-token.ts`     | `POST /agent/token`. Authenticates the user, mints the token  |
+| `src/AssistantProvider.tsx` | `A2ANetProvider` + `useA2ANet` + CopilotKit                   |
+| `src/App.tsx`               | The page, with a full chat and a collapsible sidebar          |
+| `vite.config.ts`            | Mounts the endpoint on the dev server, so there is one process |
 
 ## Environment
 
-Server side only — none of these belong in the browser bundle:
+Server side only — neither belongs in the browser bundle:
 
-| Variable             | What it is                                                              |
-| -------------------- | ----------------------------------------------------------------------- |
-| `A2ANET_API_KEY`     | A standard user API key, minted at <https://app.a2anet.com/api-keys>     |
-| `A2ANET_API_URL`     | `https://app.a2anet.com/api/v1`                                          |
-| `A2ANET_AGENT_ID`    | The agent, from its Publish page                                         |
-| `A2ANET_RUNTIME_URL` | The Runtime URL, from the same page. The SDK appends `/{agentId}/ag-ui`  |
+| Variable          | What it is                                                          |
+| ----------------- | ------------------------------------------------------------------- |
+| `A2ANET_API_KEY`  | A standard user API key, minted at <https://app.a2anet.com/api-keys> |
+| `A2ANET_AGENT_ID` | The agent, from its Publish page                                     |
 
 ## Running it
 
-This is source to copy, not an app to boot — a website or app already has its own
-server, router and build. Take the two files, mount the endpoint where your other
-routes live, and wrap your UI in `AssistantProvider`.
-
 ```bash
 bun install
-bun run typecheck
+cp .env.example .env   # then fill both values in
+bun run dev
 ```
+
+The page opens with the agent in the middle and the same conversation in a
+sidebar you can hide. Send a message and it appears under Sessions on
+<https://app.a2anet.com>.
+
+To put this in your own app, mount `handleAgentTokenRequest` at
+`https://app.example.com/agent/token` wherever your other routes live, and wrap
+your UI in `AssistantProvider`.
 
 ## Customer values
 
-An agent that acts on your customer's behalf needs their access, not yours. Pass it
-per customer when you mint the token:
+If you've used dynamic variables and secrets (e.g. `{customerName}`,
+`{customerToken}`) in your agent's instructions or tools, you need to set them for
+each customer. Pass them when you mint the token:
 
 ```ts
 await mintAgentToken(user.id, {
@@ -61,5 +68,5 @@ await mintAgentToken(user.id, {
 });
 ```
 
-Variables reach the agent's session; secrets never do. Both are resolved by the
-agent's tools by name, as `{yourServerUrl}` and `{yourToken}`.
+Both are resolved by the agent's tools by name, as `{yourServerUrl}` and
+`{yourToken}`.

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>A2A Net Website/App example</title>
+        <style>
+            :root {
+                font-family: system-ui, sans-serif;
+                color-scheme: light dark;
+            }
+            body {
+                margin: 0;
+                height: 100vh;
+            }
+            #root,
+            .layout {
+                height: 100%;
+            }
+            .layout {
+                display: flex;
+            }
+            .page {
+                display: flex;
+                flex: 1;
+                flex-direction: column;
+                min-width: 0;
+            }
+            .page header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 1rem;
+                padding: 0.75rem 1.25rem;
+                border-bottom: 1px solid rgb(128 128 128 / 0.3);
+            }
+            .page h1 {
+                font-size: 1.1rem;
+                margin: 0;
+            }
+            .page > :last-child,
+            .sidebar > * {
+                flex: 1;
+                min-height: 0;
+            }
+            .sidebar {
+                display: flex;
+                width: 24rem;
+                max-width: 45vw;
+                border-left: 1px solid rgb(128 128 128 / 0.3);
+            }
+            .notice {
+                padding: 1.25rem;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/main.tsx"></script>
+    </body>
+</html>

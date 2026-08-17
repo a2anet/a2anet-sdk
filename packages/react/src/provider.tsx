@@ -21,12 +21,15 @@ import { A2ANetAgent, type A2ANetRunContext } from "./agent.js";
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 const RETRY_DELAY_MS = 30 * 1000;
 
+/** Where A2A Net runs agents. Fixed, so minting a token cannot change it. */
+export const A2ANET_RUNTIME_URL = "https://agent.a2anet.com";
+
 /** Credentials minted by an application's backend for direct A2A Net access. */
 export interface A2ANetCredentials {
     token: string;
     expiresAt: string;
+    /** The token is minted for one agent, so the server that mints it names it. */
     agentId: string;
-    runtimeUrl: string;
 }
 
 /** Runtime values returned for a normal CopilotKit provider. */
@@ -53,6 +56,8 @@ export interface A2ANetProviderProps {
     getCredentials: () => Promise<A2ANetCredentials>;
     /** Read on every run, so a caller may return whatever its current page holds. */
     getContext?: () => A2ANetRunContext;
+    /** Overridden only for local development against a runtime of your own. */
+    runtimeUrl?: string;
 }
 
 /** Values exposed by {@link useA2ANet}. */
@@ -86,8 +91,8 @@ function refreshDelay(expiresAt: string): number {
     return remaining - Math.min(REFRESH_MARGIN_MS, remaining / 2);
 }
 
-function agentUrl(credentials: A2ANetCredentials): string {
-    return `${credentials.runtimeUrl.replace(/\/+$/, "")}/${credentials.agentId}/ag-ui`;
+function agentUrl(runtimeUrl: string, agentId: string): string {
+    return `${runtimeUrl.replace(/\/+$/, "")}/${agentId}/ag-ui`;
 }
 
 /**
@@ -100,6 +105,7 @@ export function A2ANetProvider({
     children,
     getCredentials,
     getContext,
+    runtimeUrl = A2ANET_RUNTIME_URL,
 }: A2ANetProviderProps): ReactElement {
     const agentRef = useRef<A2ANetAgent | null>(null);
     const getContextRef = useRef(getContext);
@@ -141,17 +147,18 @@ export function A2ANetProvider({
                 if (!active) return;
 
                 const headers = { Authorization: `Bearer ${credentials.token}` };
+                const url = agentUrl(runtimeUrl, credentials.agentId);
                 const agent =
                     agentRef.current ??
                     new A2ANetAgent({
                         agentId: credentials.agentId,
-                        url: agentUrl(credentials),
+                        url,
                         headers,
                         getContext: () => getContextRef.current?.() ?? {},
                     });
                 agentRef.current = agent;
                 agent.agentId = credentials.agentId;
-                agent.url = agentUrl(credentials);
+                agent.url = url;
                 agent.headers = headers;
 
                 setState({
@@ -180,7 +187,7 @@ export function A2ANetProvider({
             active = false;
             if (timer) clearTimeout(timer);
         };
-    }, [attempt, getCredentials]);
+    }, [attempt, getCredentials, runtimeUrl]);
 
     const { agent, credentials } = state;
     const agentId = credentials?.agentId;
@@ -191,13 +198,13 @@ export function A2ANetProvider({
     const copilotKitProps = useMemo<A2ANetCopilotKitProps>(() => {
         if (!agent || !credentials || !selfManagedAgents) return {};
         return {
-            runtimeUrl: credentials.runtimeUrl,
+            runtimeUrl,
             agent: credentials.agentId,
             headers: { Authorization: `Bearer ${credentials.token}` },
             useSingleEndpoint: false,
             selfManagedAgents,
         };
-    }, [agent, credentials, selfManagedAgents]);
+    }, [agent, credentials, runtimeUrl, selfManagedAgents]);
     const context = useMemo<A2ANetContextValue>(
         () => ({
             agent,

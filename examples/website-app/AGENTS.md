@@ -11,7 +11,8 @@ its other routes.
 Mount `handleAgentTokenRequest` at `POST /agent/token`, passing the app's own
 session check as `authenticate`. It has to return the app's own identifier for the
 signed-in user — the id the app already uses in its own database — or `null` when
-the request carries no session.
+the request carries no session. `vite.config.ts` shows one such mounting, on this
+example's dev server.
 
 If the app's framework does not use web `Request`/`Response` (Express, Fastify,
 Koa), drop `handleAgentTokenRequest` and call `mintAgentToken(customerId)` from a
@@ -23,15 +24,15 @@ the request body. The whole point is that the server decides who the caller is.
 
 ## 2. Add the environment variables
 
-`A2ANET_API_KEY`, `A2ANET_API_URL`, `A2ANET_AGENT_ID` and `A2ANET_RUNTIME_URL`, as
-described in `README.md`. Server-side only: an `A2ANET_API_KEY` that reaches the
-browser bundle is a leaked credential. In a framework that prefixes public
-variables (`NEXT_PUBLIC_`, `VITE_`), none of these take that prefix.
+`A2ANET_API_KEY` and `A2ANET_AGENT_ID`, as described in `README.md`. Server-side
+only: an `A2ANET_API_KEY` that reaches the browser bundle is a leaked credential.
+In a framework that prefixes public variables (`NEXT_PUBLIC_`, `VITE_`), neither
+takes that prefix.
 
 ## 3. Add the provider
 
 ```bash
-npm install @a2anet/react @ag-ui/client @copilotkit/react-core
+npm install @a2anet/react @ag-ui/client @copilotkit/react-core @copilotkit/react-ui
 ```
 
 Copy `src/AssistantProvider.tsx` in and mount it **above** anything that can
@@ -39,9 +40,11 @@ unmount — the drawer, modal or route the chat lives in. It holds the agent, wh
 owns the conversation, so mounting it inside a drawer starts a new thread every
 time the drawer closes.
 
-Render CopilotKit's chat UI inside it. `useA2ANet` gives you `copilotKitProps`,
-`status`, `error` and `retry`; the SDK deliberately does not mount CopilotKit, so
-the loading and error UI stays the app's own.
+Render CopilotKit's chat UI inside it, as `src/App.tsx` does. `useA2ANet` gives you
+`copilotKitProps`, `status`, `error` and `retry`; the SDK deliberately does not
+mount CopilotKit, so the loading and error UI stays the app's own. Two chats in
+one provider are two views of one conversation, which is what makes a full page
+and a sidebar agree.
 
 If the app fetches with credentials the browser does not send automatically (a
 bearer token from an auth SDK), add them to the `fetch` in `getCredentials` — it is

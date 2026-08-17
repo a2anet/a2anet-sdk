@@ -20,9 +20,13 @@ token, and returns it along with the agent it is for:
     token: string;
     expiresAt: string;
     agentId: string;
-    runtimeUrl: string;
 }
 ```
+
+The token is minted for one agent, so the server that mints it is the one place that names
+it. The runtime the browser talks to is `https://agent.a2anet.com`, exported as
+`A2ANET_RUNTIME_URL`; pass `runtimeUrl` to the provider to point at a runtime of your own
+during local development.
 
 `A2ANetProvider` calls `getCredentials` on mount and again before `expiresAt`. Send whatever
 your backend needs to authenticate the user, the same as any other request to it:

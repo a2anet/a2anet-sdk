@@ -8,6 +8,7 @@ import { act, cleanup, render, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 import {
+    A2ANET_RUNTIME_URL,
     type A2ANetAgent,
     type A2ANetContextValue,
     type A2ANetCredentials,
@@ -20,7 +21,6 @@ const credentials = (overrides: Partial<A2ANetCredentials> = {}): A2ANetCredenti
     token: "token-1",
     expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     agentId: "agent-1",
-    runtimeUrl: "https://runtime.example",
     ...overrides,
 });
 
@@ -68,16 +68,33 @@ describe("A2ANetProvider", () => {
         const props = current?.copilotKitProps;
 
         expect(props).toMatchObject({
-            runtimeUrl: "https://runtime.example",
+            runtimeUrl: A2ANET_RUNTIME_URL,
             agent: "agent-1",
             headers: { Authorization: "Bearer token-1" },
             useSingleEndpoint: false,
         });
         // The same instance the caller reads directly, so nobody rebuilds their own.
         expect(props?.selfManagedAgents?.["agent-1"]).toBe(current?.agent as A2ANetAgent);
-        expect(current?.agent?.url).toBe("https://runtime.example/agent-1/ag-ui");
+        expect(current?.agent?.url).toBe(`${A2ANET_RUNTIME_URL}/agent-1/ag-ui`);
         expect(current?.agent?.headers).toEqual({ Authorization: "Bearer token-1" });
         expect(current?.error).toBeNull();
+    });
+
+    test("points at a runtime of the caller's own when one is given", async () => {
+        render(
+            <A2ANetProvider
+                getCredentials={() => Promise.resolve(credentials())}
+                runtimeUrl="http://localhost:8000/"
+            >
+                <Probe />
+            </A2ANetProvider>,
+        );
+
+        await waitFor(() => expect(current?.status).toBe(A2ANetStatus.Ready));
+
+        // Local development is the whole reason the override exists.
+        expect(current?.copilotKitProps.runtimeUrl).toBe("http://localhost:8000/");
+        expect(current?.agent?.url).toBe("http://localhost:8000/agent-1/ag-ui");
     });
 
     test("reads the newest context on every run without replacing the agent", async () => {

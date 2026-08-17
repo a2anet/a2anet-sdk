@@ -20,7 +20,6 @@ export const typeCompatibility = (
                 token: "token",
                 expiresAt: new Date(Date.now() + 60_000).toISOString(),
                 agentId: "agent",
-                runtimeUrl: "https://runtime.example",
             })
         }
     >

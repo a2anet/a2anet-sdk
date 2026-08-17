@@ -1,4 +1,4 @@
-# Website/App example
+# Website/App Example
 
 Publishing an A2A Net agent inside your own product: one backend endpoint, one
 React provider, and a runnable app around them.

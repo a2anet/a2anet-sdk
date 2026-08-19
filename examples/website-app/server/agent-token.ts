@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * `POST /agent/token` — the one endpoint your backend has to add.
+ * `POST /api/token` — the one endpoint your backend has to add.
  *
  * The browser talks to the agent directly, so it needs a credential of its own.
  * Your A2A Net API key never leaves the server: this endpoint authenticates the
@@ -83,7 +83,7 @@ const json = (body: unknown, status: number): Response =>
 /**
  * Builds the route handler.
  * @param authenticate Your own session check, returning the customer id.
- * @returns A handler to mount at `POST /agent/token`.
+ * @returns A handler to mount at `POST /api/token`.
  */
 export function handleAgentTokenRequest(
     authenticate: Authenticate,

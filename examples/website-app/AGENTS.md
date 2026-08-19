@@ -8,7 +8,7 @@ or app. Read `README.md` first for the contract.
 Copy `server/agent-token.ts` into wherever the app keeps its server code, next to
 its other routes.
 
-Mount `handleAgentTokenRequest` at `POST /agent/token`, passing the app's own
+Mount `handleAgentTokenRequest` at `POST /api/token`, passing the app's own
 session check as `authenticate`. It has to return the app's own identifier for the
 signed-in user — the id the app already uses in its own database — or `null` when
 the request carries no session. `vite.config.ts` shows one such mounting, on this

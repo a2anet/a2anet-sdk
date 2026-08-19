@@ -26,10 +26,10 @@ function agentTokenEndpoint(): Plugin {
     return {
         name: "agent-token-endpoint",
         configureServer(server) {
-            server.middlewares.use("/agent/token", (request, response, next) => {
+            server.middlewares.use("/api/token", (request, response, next) => {
                 if (request.method !== "POST") return next();
 
-                void handle(new Request("http://localhost/agent/token", { method: "POST" })).then(
+                void handle(new Request("http://localhost/api/token", { method: "POST" })).then(
                     async (minted) => {
                         response.statusCode = minted.status;
                         response.setHeader("Content-Type", "application/json");

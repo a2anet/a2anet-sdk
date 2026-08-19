@@ -25,7 +25,7 @@ Your backend mints one with your A2A Net API key, which never leaves the server:
 
 | File                        | What it is                                                    |
 | --------------------------- | ------------------------------------------------------------- |
-| `server/agent-token.ts`     | `POST /agent/token`. Authenticates the user, mints the token  |
+| `server/agent-token.ts`     | `POST /api/token`. Authenticates the user, mints the token   |
 | `src/AssistantProvider.tsx` | `A2ANetProvider` + `useA2ANet` + CopilotKit                   |
 | `src/App.tsx`               | The page, with a full chat and a collapsible sidebar          |
 | `vite.config.ts`            | Mounts the endpoint on the dev server, so there is one process |
@@ -52,7 +52,7 @@ sidebar you can hide. Send a message and it appears under Sessions on
 <https://app.a2anet.com>.
 
 To put this in your own app, mount `handleAgentTokenRequest` at
-`https://app.example.com/agent/token` wherever your other routes live, and wrap
+`https://app.example.com/api/token` wherever your other routes live, and wrap
 your UI in `AssistantProvider`.
 
 ## Customer values

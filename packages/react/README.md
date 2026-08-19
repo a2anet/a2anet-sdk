@@ -37,7 +37,7 @@ import { A2ANetProvider, type A2ANetCredentials } from "@a2anet/react";
 
 export function Root() {
     const getCredentials = useCallback(async (): Promise<A2ANetCredentials> => {
-        const response = await fetch("/api/a2anet/credentials", {
+        const response = await fetch("/api/token", {
             method: "POST",
             headers: { Authorization: `Bearer ${await getAccessToken()}` },
         });

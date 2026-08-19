@@ -20,8 +20,8 @@ import {
 import { CopilotKitProvider } from "@copilotkit/react-core/v2";
 import { type ReactNode, useCallback } from "react";
 
-/** The `POST /agent/token` endpoint from `server/agent-token.ts`. */
-const TOKEN_URL = "/agent/token";
+/** The `POST /api/token` endpoint from `server/agent-token.ts`. */
+const TOKEN_URL = "/api/token";
 
 /**
  * Mounts CopilotKit once the SDK has a credential.

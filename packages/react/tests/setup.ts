@@ -7,3 +7,7 @@
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 
 GlobalRegistrator.register();
+
+// React refuses to run act() outside an environment that declares itself one, which
+// it cannot detect for itself under Bun's runner.
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

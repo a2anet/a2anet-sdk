@@ -84,6 +84,27 @@ export function App() {
 }
 ```
 
+## Credentials
+
+A minted token is short-lived. Every agent request mints a replacement first when the one
+it holds is spent, so a token is renewed by whatever the user does next; a scheduled
+refresh runs as well, but nothing depends on it firing. `status` turns to `Error` only
+once no usable token is left, so one failed refresh does not tear down a working
+conversation.
+
+Requests the SDK does not issue are not gated — CopilotKit's thread endpoints build their
+own `fetch`. Await `ensureCredentials` before those:
+
+```tsx
+const { ensureCredentials } = useA2ANet();
+const { refetchThreads } = useThreads({ agentId });
+
+const showThreads = async () => {
+    await ensureCredentials();
+    refetchThreads();
+};
+```
+
 ## Artifacts
 
 Files the agent produces arrive as events rather than messages, so render them yourself.

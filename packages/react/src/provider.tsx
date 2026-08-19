@@ -270,6 +270,12 @@ export function A2ANetProvider({
     }, [load]);
     ensureRef.current = ensureCredentials;
 
+    // Exposed separately so it keeps a stable identity a caller can put in a dependency
+    // array, and so the credential itself stays inside the provider.
+    const ensureCredentialsVoid = useCallback(async (): Promise<void> => {
+        await ensureCredentials();
+    }, [ensureCredentials]);
+
     const retry = useCallback((): void => {
         attemptRef.current = 0;
         setState((previous) => ({ ...previous, error: null }));
@@ -308,11 +314,9 @@ export function A2ANetProvider({
             status: state.status,
             error: state.error,
             retry,
-            ensureCredentials: async (): Promise<void> => {
-                await ensureCredentials();
-            },
+            ensureCredentials: ensureCredentialsVoid,
         }),
-        [agent, copilotKitProps, ensureCredentials, retry, state.error, state.status],
+        [agent, copilotKitProps, ensureCredentialsVoid, retry, state.error, state.status],
     );
 
     return createElement(A2ANetContext.Provider, { value: context }, children);

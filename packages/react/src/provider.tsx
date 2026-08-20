@@ -19,17 +19,16 @@ import {
 
 import { A2ANetAgent, type A2ANetRunContext } from "./agent.js";
 
-const REFRESH_MARGIN_MS = 5 * 60 * 1000;
+/** Life left below which a credential is replaced rather than used. */
+const MINT_MARGIN_MS = 5 * 60 * 1000;
 
 /**
  * Delays between failed mints, after which only an action mints again.
  *
- * A stuck caller used to retry every 30 seconds for as long as its tab stayed
- * open — 1,798 rejected mints in a single day from a handful of sessions. The
- * ladder gives a transient failure several quick chances and then stops, because
- * `ensureCredentials` mints again on the next thing the user does.
+ * A caller that cannot mint at all must not keep asking for as long as its tab stays open,
+ * so the ladder gives a transient failure several quick chances and then stops.
  */
-const RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 60_000];
+const RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000];
 
 /** Where A2A Net runs agents. Fixed, so minting a token cannot change it. */
 export const A2ANET_RUNTIME_URL = "https://agent.a2anet.com";
@@ -79,13 +78,13 @@ export interface A2ANetContextValue {
     error: Error | null;
     retry: () => void;
     /**
-     * Mint if the current credential is spent, for requests the SDK cannot gate.
+     * Replace the current credential if it is spent, and resolve once one is usable.
      *
-     * The agent's own requests await this already. Callers reaching A2A Net another
-     * way — CopilotKit's thread endpoints build their own `fetch` — should await it
-     * before the action that needs a working token.
+     * The provider runs this ahead of every request the agent makes, so it is only worth
+     * calling for requests the provider does not make: CopilotKit's thread endpoints
+     * build a `fetch` of their own, and carry whatever token the last render gave them.
      */
-    ensureCredentials: () => Promise<void>;
+    checkAndMintCredentials: () => Promise<void>;
 }
 
 interface ProviderState {
@@ -107,23 +106,18 @@ function expiresIn(credentials: A2ANetCredentials): number {
     return Number.isFinite(remaining) ? Math.max(remaining, 0) : 0;
 }
 
-function refreshDelay(credentials: A2ANetCredentials): number {
-    const remaining = expiresIn(credentials);
-    return remaining - Math.min(REFRESH_MARGIN_MS, remaining / 2);
-}
-
 function agentUrl(runtimeUrl: string, agentId: string): string {
     return `${runtimeUrl.replace(/\/+$/, "")}/${agentId}/ag-ui`;
 }
 
 /**
- * Load and refresh A2A Net credentials while keeping one agent instance alive.
+ * Load and replace A2A Net credentials while keeping one agent instance alive.
  *
- * Every agent request goes through `ensureCredentials` first, so a spent token is
- * replaced by the next thing the user does. The scheduled refresh still runs, but
- * nothing depends on it firing: a background tab or a sleeping machine defers
- * timers past the token's hour-long life, and the session then signs its requests
- * with a dead token and reads back a 401.
+ * The provider gives the agent a `fetch` of its own, so `checkAndMintCredentials` runs
+ * ahead of every request the agent makes and a spent token is replaced by the next thing
+ * the user does. No timer renews one: a background tab or a sleeping machine defers timers
+ * well past a token's life, and a session waiting on one signs its requests with a dead
+ * token and reads back a 401.
  *
  * The provider only supplies integration state; it always renders its children and
  * never mounts CopilotKit or application UI itself.
@@ -142,9 +136,9 @@ export function A2ANetProvider({
     const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const attemptRef = useRef(0);
     const activeRef = useRef(true);
-    // The agent's fetch mints through `ensureCredentials`, which is defined after the
-    // agent that uses it; the ref ties that knot without rebuilding either one.
-    const ensureRef = useRef<() => Promise<A2ANetCredentials>>(() =>
+    // The agent's fetch mints through `checkAndMintCredentials`, which is defined after
+    // the agent that uses it; the ref ties that knot without rebuilding either one.
+    const checkAndMintRef = useRef<() => Promise<A2ANetCredentials>>(() =>
         Promise.reject(new Error("A2A Net credentials are not loading yet")),
     );
     const [state, setState] = useState<ProviderState>({
@@ -169,7 +163,7 @@ export function A2ANetProvider({
     }, []);
 
     const authorizedFetch = useCallback<HttpAgentFetchFn>(async (url, requestInit) => {
-        const { token } = await ensureRef.current();
+        const { token } = await checkAndMintRef.current();
         const headers = new Headers(requestInit.headers);
         headers.set("Authorization", `Bearer ${token}`);
         return fetch(url, { ...requestInit, headers });
@@ -215,9 +209,7 @@ export function A2ANetProvider({
                     status: A2ANetStatus.Ready,
                     error: null,
                 });
-                schedule(refreshDelay(credentials), () => {
-                    void ensureRef.current().catch(() => {});
-                });
+                clearTimeout(timerRef.current);
                 return credentials;
             } catch (value) {
                 const error = errorFrom(value);
@@ -237,14 +229,7 @@ export function A2ANetProvider({
                 if (delay !== undefined) {
                     attemptRef.current += 1;
                     schedule(delay, () => {
-                        void ensureRef.current().catch(() => {});
-                    });
-                } else if (current) {
-                    // Out of retries with a credential still good: say so when it goes.
-                    schedule(expiresIn(current), () => {
-                        if (activeRef.current) {
-                            setState((previous) => ({ ...previous, status: A2ANetStatus.Error }));
-                        }
+                        void checkAndMintRef.current().catch(() => {});
                     });
                 }
                 throw error;
@@ -255,26 +240,26 @@ export function A2ANetProvider({
         return pendingRef.current;
     }, [buildAgent, schedule]);
 
-    const ensureCredentials = useCallback(async (): Promise<A2ANetCredentials> => {
+    const checkAndMintCredentials = useCallback(async (): Promise<A2ANetCredentials> => {
         const current = credentialsRef.current;
-        if (current && expiresIn(current) > REFRESH_MARGIN_MS) return current;
+        if (current && expiresIn(current) > MINT_MARGIN_MS) return current;
 
         try {
             return await load();
         } catch (error) {
-            // A refresh that fails while the credential it replaces is still good must
-            // not fail the request that triggered it.
+            // A mint that fails while the credential it replaces is still good must not
+            // fail the request that triggered it.
             if (current && expiresIn(current) > 0) return current;
             throw error;
         }
     }, [load]);
-    ensureRef.current = ensureCredentials;
+    checkAndMintRef.current = checkAndMintCredentials;
 
     // Exposed separately so it keeps a stable identity a caller can put in a dependency
     // array, and so the credential itself stays inside the provider.
-    const ensureCredentialsVoid = useCallback(async (): Promise<void> => {
-        await ensureCredentials();
-    }, [ensureCredentials]);
+    const checkAndMintCredentialsVoid = useCallback(async (): Promise<void> => {
+        await checkAndMintCredentials();
+    }, [checkAndMintCredentials]);
 
     const retry = useCallback((): void => {
         attemptRef.current = 0;
@@ -284,7 +269,7 @@ export function A2ANetProvider({
 
     useEffect(() => {
         activeRef.current = true;
-        void ensureRef.current().catch(() => {});
+        void checkAndMintRef.current().catch(() => {});
         return () => {
             activeRef.current = false;
             clearTimeout(timerRef.current);
@@ -314,9 +299,9 @@ export function A2ANetProvider({
             status: state.status,
             error: state.error,
             retry,
-            ensureCredentials: ensureCredentialsVoid,
+            checkAndMintCredentials: checkAndMintCredentialsVoid,
         }),
-        [agent, copilotKitProps, ensureCredentialsVoid, retry, state.error, state.status],
+        [agent, checkAndMintCredentialsVoid, copilotKitProps, retry, state.error, state.status],
     );
 
     return createElement(A2ANetContext.Provider, { value: context }, children);

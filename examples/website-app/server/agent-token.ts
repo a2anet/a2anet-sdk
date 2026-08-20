@@ -5,7 +5,7 @@
 /**
  * `POST /api/token` — the one endpoint your backend has to add.
  *
- * The browser talks to the agent directly, so it needs a credential of its own.
+ * The browser reaches the agent directly, so it needs a credential of its own.
  * Your A2A Net API key never leaves the server: this endpoint authenticates the
  * user the way the rest of your app already does, then exchanges the key for a
  * short-lived customer token naming that one user to that one agent.
@@ -93,7 +93,7 @@ export function handleAgentTokenRequest(
         if (!customerId) return json({ error: "Unauthorized" }, 401);
 
         // Whatever this customer's runs need, if the agent's tools take any:
-        //   { variables: { yourServerUrl: API_BASE }, secrets: { yourToken: ... } }
+        //   { variables: { serverUrl: API_BASE }, secrets: { customerToken: ... } }
         return json(await mintAgentToken(customerId), 200);
     };
 }

@@ -173,20 +173,14 @@ describe("A2ANetProvider", () => {
         expect(calls).toBe(2);
     });
 
-    test("refreshes before expiry without replacing the agent", async () => {
+    test("replaces a spent credential without replacing the agent", async () => {
         let calls = 0;
         const getCredentials = (): Promise<A2ANetCredentials> => {
             calls += 1;
             return Promise.resolve(
-                credentials(
-                    calls === 1
-                        ? {
-                              expiresAt: new Date(Date.now() + 40).toISOString(),
-                          }
-                        : {
-                              token: "token-2",
-                          },
-                ),
+                calls === 1
+                    ? credentials({ expiresAt: nearlySpent() })
+                    : credentials({ token: "token-2" }),
             );
         };
         render(
@@ -199,27 +193,24 @@ describe("A2ANetProvider", () => {
         const firstAgent = current?.copilotKitProps.selfManagedAgents?.["agent-1"] as
             | A2ANetAgent
             | undefined;
-        await waitFor(() => expect(calls).toBe(2));
-        await waitFor(() =>
-            expect(current?.copilotKitProps.headers).toEqual({
-                Authorization: "Bearer token-2",
-            }),
-        );
 
+        await act(async () => {
+            await current?.checkAndMintCredentials();
+        });
+
+        expect(calls).toBe(2);
+        expect(current?.copilotKitProps.headers).toEqual({ Authorization: "Bearer token-2" });
+        // The agent owns the conversation, so a new credential must not bring a new one.
         expect(current?.copilotKitProps.selfManagedAgents?.["agent-1"]).toBe(firstAgent);
         expect(firstAgent?.headers).toEqual({ Authorization: "Bearer token-2" });
     });
 
-    test("keeps a working conversation up when a refresh fails", async () => {
+    test("keeps a working conversation up when a mint fails", async () => {
         let calls = 0;
         const getCredentials = (): Promise<A2ANetCredentials> => {
             calls += 1;
-            if (calls === 1) {
-                return Promise.resolve(
-                    credentials({ expiresAt: new Date(Date.now() + 40).toISOString() }),
-                );
-            }
-            if (calls === 2) return Promise.reject(new Error("refresh failed"));
+            if (calls === 1) return Promise.resolve(credentials({ expiresAt: nearlySpent() }));
+            if (calls === 2) return Promise.reject(new Error("mint failed"));
             return Promise.resolve(credentials({ token: "token-3" }));
         };
         render(
@@ -230,9 +221,14 @@ describe("A2ANetProvider", () => {
 
         await waitFor(() => expect(current?.status).toBe(A2ANetStatus.Ready));
         const agent = current?.agent;
-        // The failed refresh reports itself, but the credential it replaces is still
-        // valid, so the caller keeps a usable agent rather than an error screen.
-        await waitFor(() => expect(current?.error?.message).toBe("refresh failed"));
+
+        await act(async () => {
+            await current?.checkAndMintCredentials();
+        });
+
+        // The failed mint reports itself, but the credential it would have replaced is
+        // still valid, so the caller keeps a usable agent rather than an error screen.
+        expect(current?.error?.message).toBe("mint failed");
         expect(current?.status).toBe(A2ANetStatus.Ready);
         expect(current?.copilotKitProps.headers).toEqual({ Authorization: "Bearer token-1" });
 
@@ -296,29 +292,6 @@ describe("A2ANetProvider", () => {
         expect(new Headers(requests[0].headers).get("Authorization")).toBe("Bearer token-1");
     });
 
-    test("mints on demand for requests the SDK cannot gate", async () => {
-        let calls = 0;
-        const getCredentials = (): Promise<A2ANetCredentials> => {
-            calls += 1;
-            return Promise.resolve(
-                credentials({ token: `token-${calls}`, expiresAt: nearlySpent() }),
-            );
-        };
-        render(
-            <A2ANetProvider getCredentials={getCredentials}>
-                <Probe />
-            </A2ANetProvider>,
-        );
-
-        await waitFor(() => expect(current?.status).toBe(A2ANetStatus.Ready));
-        await act(async () => {
-            await current?.ensureCredentials();
-        });
-
-        expect(calls).toBe(2);
-        expect(current?.copilotKitProps.headers).toEqual({ Authorization: "Bearer token-2" });
-    });
-
     test("reports an error once the credential is spent, and stops hammering the mint", async () => {
         let calls = 0;
         const getCredentials = (): Promise<A2ANetCredentials> => {
@@ -333,11 +306,17 @@ describe("A2ANetProvider", () => {
             </A2ANetProvider>,
         );
 
-        await waitFor(() => expect(current?.status).toBe(A2ANetStatus.Error));
+        // Waited out, so the mint below is its own rather than the one already in flight.
+        await waitFor(() => expect(current?.status).toBe(A2ANetStatus.Ready));
+        await act(async () => {
+            await current?.checkAndMintCredentials().catch(() => {});
+        });
+
+        expect(current?.status).toBe(A2ANetStatus.Error);
         expect(current?.error?.message).toBe("mint failed");
 
         // The first retry is a second away, so a session that cannot mint stays quiet
-        // rather than repeating the request several times a minute for hours.
+        // rather than repeating the request several times a minute for as long as it runs.
         const attempts = calls;
         await new Promise((resolve) => setTimeout(resolve, 300));
         expect(calls).toBe(attempts);

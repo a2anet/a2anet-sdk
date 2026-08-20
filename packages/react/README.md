@@ -67,20 +67,27 @@ A working endpoint and provider, ready to copy, are in
 
 ### Renewal
 
-A minted token is short-lived. Every agent request mints a replacement first when the one the
-provider holds is spent, so a token is renewed by whatever the user does next; a scheduled
-refresh runs as well, but nothing depends on it firing. `status` turns to `Error` only once
-no usable token is left, so one failed refresh does not tear down a working conversation.
+A minted token is short-lived, and the provider replaces it for you. It gives the agent a
+`fetch` of its own that checks the token and mints a replacement before each request, so a
+spent token is replaced by whatever the user does next — sending a message, reconnecting to
+a thread, stopping a run. No timer renews one: a background tab or a sleeping machine defers
+timers well past a token's life, and a session waiting on one signs its requests with a dead
+token.
 
-Requests the SDK does not issue are not renewed this way — CopilotKit's thread endpoints
-build their own `fetch`. Await `ensureCredentials` before those:
+`status` turns to `Error` only once no usable token is left, so a single failed mint does
+not tear down a working conversation.
+
+The one gap is requests the provider does not make. CopilotKit's thread endpoints — listing,
+renaming, archiving and deleting conversations — build a `fetch` of their own and carry
+whatever token the last render gave them, and a user can reach all of them without ever
+sending a message. Await `checkAndMintCredentials` before those:
 
 ```tsx
-const { ensureCredentials } = useA2ANet();
+const { checkAndMintCredentials } = useA2ANet();
 const { refetchThreads } = useThreads({ agentId });
 
 const showThreads = async () => {
-    await ensureCredentials();
+    await checkAndMintCredentials();
     refetchThreads();
 };
 ```

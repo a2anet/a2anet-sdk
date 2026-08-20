@@ -5,7 +5,7 @@
 /**
  * `POST /api/token` — the one endpoint your backend has to add.
  *
- * The browser reaches the agent directly, so it needs a credential of its own.
+ * The browser connects to A2A Net directly, so it needs a credential of its own.
  * Your A2A Net API key never leaves the server: this endpoint authenticates the
  * user the way the rest of your app already does, then exchanges the key for a
  * short-lived customer token naming that one user to that one agent.

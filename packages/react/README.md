@@ -11,9 +11,14 @@ npm install @a2anet/react @ag-ui/client @copilotkit/react-core
 
 ## Credentials
 
-The browser talks to the agent directly, using a short-lived credential your backend mints
-with your A2A Net API key. Add an endpoint that authenticates the user, mints a customer
-token, and returns it along with the agent it is for:
+For performance reasons, the chat connects to A2A Net from the browser without going
+through a server-side endpoint or proxy. For browsers to authenticate with A2A Net, they
+use a short-lived JWT token, which your backend mints with your A2A Net API key. The key
+never leaves the server.
+
+Add an endpoint that authenticates the user, mints a customer token, and returns it along
+with the agent it is for. `POST /api/token` is the path this SDK's example uses, and yours
+is whatever you name in `getCredentials`:
 
 ```ts
 {
@@ -24,12 +29,13 @@ token, and returns it along with the agent it is for:
 ```
 
 The token is minted for one agent, so the server that mints it is the one place that names
-it. The runtime the browser talks to is `https://agent.a2anet.com`, exported as
+it. Requests from the browser go to `https://agent.a2anet.com`, exported as
 `A2ANET_RUNTIME_URL`; pass `runtimeUrl` to the provider to point at a runtime of your own
 during local development.
 
-`A2ANetProvider` calls `getCredentials` on mount and again before `expiresAt`. Send whatever
-your backend needs to authenticate the user, the same as any other request to it:
+`A2ANetProvider` calls `getCredentials` on mount, and again whenever the token it holds is
+spent. Send whatever your backend needs to authenticate the user, the same as any other
+request to it:
 
 ```tsx
 import { useCallback } from "react";
@@ -59,6 +65,26 @@ which owns the conversation.
 A working endpoint and provider, ready to copy, are in
 [`examples/website-app`](../../examples/website-app).
 
+### Renewal
+
+A minted token is short-lived. Every agent request mints a replacement first when the one the
+provider holds is spent, so a token is renewed by whatever the user does next; a scheduled
+refresh runs as well, but nothing depends on it firing. `status` turns to `Error` only once
+no usable token is left, so one failed refresh does not tear down a working conversation.
+
+Requests the SDK does not issue are not renewed this way — CopilotKit's thread endpoints
+build their own `fetch`. Await `ensureCredentials` before those:
+
+```tsx
+const { ensureCredentials } = useA2ANet();
+const { refetchThreads } = useThreads({ agentId });
+
+const showThreads = async () => {
+    await ensureCredentials();
+    refetchThreads();
+};
+```
+
 ## Rendering the chat
 
 `useA2ANet` returns the properties CopilotKit needs, plus the credential's status. The SDK
@@ -82,27 +108,6 @@ export function App() {
         </CopilotKitProvider>
     );
 }
-```
-
-## Credentials
-
-A minted token is short-lived. Every agent request mints a replacement first when the one
-it holds is spent, so a token is renewed by whatever the user does next; a scheduled
-refresh runs as well, but nothing depends on it firing. `status` turns to `Error` only
-once no usable token is left, so one failed refresh does not tear down a working
-conversation.
-
-Requests the SDK does not issue are not gated — CopilotKit's thread endpoints build their
-own `fetch`. Await `ensureCredentials` before those:
-
-```tsx
-const { ensureCredentials } = useA2ANet();
-const { refetchThreads } = useThreads({ agentId });
-
-const showThreads = async () => {
-    await ensureCredentials();
-    refetchThreads();
-};
 ```
 
 ## Artifacts

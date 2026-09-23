@@ -77,20 +77,18 @@ token.
 `status` turns to `Error` only once no usable token is left, so a single failed mint does
 not tear down a working conversation.
 
-The one gap is requests the provider does not make. CopilotKit's thread endpoints — listing,
-renaming, archiving and deleting conversations — build a `fetch` of their own and carry
-whatever token the last render gave them, and a user can reach all of them without ever
-sending a message. Await `checkAndMintCredentials` before those:
+CopilotKit's thread endpoints build a `fetch` of their own, so use
+`useA2ANetThreads` for listing and managing conversations. It replaces a spent token before
+each request and preserves whether A2A Net recorded a conversation as user- or
+schedule-initiated:
 
 ```tsx
-const { checkAndMintCredentials } = useA2ANet();
-const { refetchThreads } = useThreads({ agentId });
-
-const showThreads = async () => {
-    await checkAndMintCredentials();
-    refetchThreads();
-};
+const { threads, archiveThread, deleteThread } = useA2ANetThreads({ agentId });
+const scheduled = threads.filter((thread) => thread.type === "scheduled");
 ```
+
+The remaining `useA2ANet().checkAndMintCredentials` method is available for custom A2A Net
+requests the provider and its hooks do not make.
 
 ## Rendering the chat
 

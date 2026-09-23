@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { HttpAgentFetchFn } from "@ag-ui/client";
 import type { CopilotKitProviderProps } from "@copilotkit/react-core/v2";
 import {
     type ReactElement,
@@ -77,6 +76,8 @@ export interface A2ANetContextValue {
     /** A failed refresh reports its error while the current credential keeps working. */
     error: Error | null;
     retry: () => void;
+    /** Fetch with a current customer credential. */
+    authenticatedFetch: A2ANetFetch;
     /**
      * Replace the current credential if it is spent, and resolve once one is usable.
      *
@@ -86,6 +87,9 @@ export interface A2ANetContextValue {
      */
     checkAndMintCredentials: () => Promise<void>;
 }
+
+/** A browser-compatible fetch function authenticated with an A2A Net customer token. */
+export type A2ANetFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 interface ProviderState {
     agent: A2ANetAgent | null;
@@ -162,11 +166,11 @@ export function A2ANetProvider({
         timerRef.current = setTimeout(action, Math.max(delay, 0));
     }, []);
 
-    const authorizedFetch = useCallback<HttpAgentFetchFn>(async (url, requestInit) => {
+    const authenticatedFetch = useCallback<A2ANetFetch>(async (input, init) => {
         const { token } = await checkAndMintRef.current();
-        const headers = new Headers(requestInit.headers);
+        const headers = new Headers(init?.headers);
         headers.set("Authorization", `Bearer ${token}`);
-        return fetch(url, { ...requestInit, headers });
+        return globalThis.fetch(input, { ...init, headers });
     }, []);
 
     const buildAgent = useCallback(
@@ -179,7 +183,7 @@ export function A2ANetProvider({
                     agentId: credentials.agentId,
                     url,
                     headers,
-                    fetch: authorizedFetch,
+                    fetch: authenticatedFetch,
                     getContext: () => getContextRef.current?.() ?? {},
                 });
             agentRef.current = agent;
@@ -188,7 +192,7 @@ export function A2ANetProvider({
             agent.headers = headers;
             return agent;
         },
-        [authorizedFetch, runtimeUrl],
+        [authenticatedFetch, runtimeUrl],
     );
 
     // One mint at a time, cleared through `finally` on the promise rather than inside
@@ -299,9 +303,18 @@ export function A2ANetProvider({
             status: state.status,
             error: state.error,
             retry,
+            authenticatedFetch,
             checkAndMintCredentials: checkAndMintCredentialsVoid,
         }),
-        [agent, checkAndMintCredentialsVoid, copilotKitProps, retry, state.error, state.status],
+        [
+            agent,
+            authenticatedFetch,
+            checkAndMintCredentialsVoid,
+            copilotKitProps,
+            retry,
+            state.error,
+            state.status,
+        ],
     );
 
     return createElement(A2ANetContext.Provider, { value: context }, children);

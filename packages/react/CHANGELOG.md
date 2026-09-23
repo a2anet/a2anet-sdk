@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/a2anet/a2anet-sdk/compare/react-v0.2.0...react-v0.3.0) (2026-09-23)
+
+
+### Features
+
+* **react:** preserve A2A thread types ([a17dfe1](https://github.com/a2anet/a2anet-sdk/commit/a17dfe183456945a716a39f93211edeeec5d40d0))
+
 ## [0.2.0](https://github.com/a2anet/a2anet-sdk/compare/react-v0.1.0...react-v0.2.0) (2026-08-20)
 
 

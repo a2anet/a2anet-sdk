@@ -33,6 +33,9 @@ spent.
 | `server/agent-token.ts`     | `POST /api/token`. Authenticates the user, mints the token     |
 | `src/AssistantProvider.tsx` | `A2ANetProvider` + `useA2ANet` + CopilotKit                    |
 | `src/App.tsx`               | The page, with a full chat and a collapsible sidebar           |
+| `src/Chat.tsx`              | CopilotChat with the agent's files, feedback and attachments   |
+| `src/Threads.tsx`           | The user's chats and scheduled chats                           |
+| `src/Schedules.tsx`         | Creating, pausing and deleting scheduled chats                 |
 | `vite.config.ts`            | Mounts the endpoint on the dev server, so there is one process |
 
 ## Environment
@@ -53,7 +56,9 @@ bun run dev
 ```
 
 The page opens with the agent in the middle and the same conversation in a sidebar you can
-hide. Send a message and it appears under Sessions on <https://app.a2anet.com>.
+hide. Send a message and it appears under Sessions on <https://app.a2anet.com>, with any 👍
+or 👎 under the reply it rates. The sidebar's History lists past chats, including ones a
+schedule started, and Schedules sets up messages the agent receives on a cron schedule.
 
 To put this in your own app, mount `handleAgentTokenRequest` at
 `https://app.example.com/api/token` wherever your other routes live, and wrap your UI in

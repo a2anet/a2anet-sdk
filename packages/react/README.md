@@ -162,6 +162,52 @@ function Chat({ agentId, threadId }: { agentId: string; threadId: string }) {
 }
 ```
 
+## Feedback
+
+`useA2ANetFeedback` records a 👍 or 👎 on the agent's reply, with optional text, for the
+agent's owner to read in the session. Feedback is per turn, so every message in one turn
+shares a rating and rating it again replaces it. Wire it to `CopilotChat`'s thumbs:
+
+```tsx
+import { useA2ANetFeedback } from "@a2anet/react";
+import { CopilotChat } from "@copilotkit/react-core/v2";
+
+function Chat({ agentId, threadId }: { agentId: string; threadId: string }) {
+    const rate = useA2ANetFeedback(agentId, threadId);
+
+    return (
+        <CopilotChat
+            agentId={agentId}
+            threadId={threadId}
+            messageView={{
+                assistantMessage: {
+                    onThumbsUp: (message) => void rate(message.id, { value: 1 }),
+                    onThumbsDown: (message) => void rate(message.id, { value: 0 }),
+                },
+            }}
+        />
+    );
+}
+```
+
+Call it again with the same value and a `rationale` to add what the user writes afterwards.
+
+## Scheduled chats
+
+`useA2ANetSchedules` lists and manages messages A2A Net sends the agent on the user's
+behalf, on a cron schedule. The customer token names the user and the agent, so neither is
+passed:
+
+```tsx
+const { schedules, createSchedule, updateSchedule, deleteSchedule } = useA2ANetSchedules();
+
+await createSchedule({ message: "Summarize yesterday's bookings", cron: "0 9 * * 1-5" });
+await updateSchedule(schedule.id, { enabled: false });
+```
+
+A run a schedule starts appears in `useA2ANetThreads` with the type `"scheduled"`, and its
+reply can also be emailed or posted to Slack through `sendResponseTo`.
+
 ## Context
 
 Pass `getContext` to tell the agent what the user is looking at. It is read on every run, so

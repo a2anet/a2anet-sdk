@@ -4,7 +4,9 @@
 
 export * from "./agent.js";
 export * from "./artifacts.js";
+export * from "./feedback.js";
 export * from "./provider.js";
+export * from "./schedules.js";
 export * from "./threads.js";
 
 export const VERSION = "0.3.0"; // x-release-please-version

@@ -31,6 +31,8 @@ const RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000];
 
 /** Where A2A Net runs agents. Fixed, so minting a token cannot change it. */
 export const A2ANET_RUNTIME_URL = "https://agent.a2anet.com";
+/** A2A Net's own API, which holds what a customer sets up around their conversations. */
+export const A2ANET_API_URL = "https://app.a2anet.com/api/v1";
 
 /** Credentials minted by an application's backend for direct A2A Net access. */
 export interface A2ANetCredentials {
@@ -66,6 +68,8 @@ export interface A2ANetProviderProps {
     getContext?: () => A2ANetRunContext;
     /** Overridden only for local development against a runtime of your own. */
     runtimeUrl?: string;
+    /** Overridden only for local development against an API of your own. */
+    apiUrl?: string;
 }
 
 /** Values exposed by {@link useA2ANet}. */
@@ -78,6 +82,7 @@ export interface A2ANetContextValue {
     retry: () => void;
     /** Fetch with a current customer credential. */
     authenticatedFetch: A2ANetFetch;
+    apiUrl: string;
     /**
      * Replace the current credential if it is spent, and resolve once one is usable.
      *
@@ -131,6 +136,7 @@ export function A2ANetProvider({
     getCredentials,
     getContext,
     runtimeUrl = A2ANET_RUNTIME_URL,
+    apiUrl = A2ANET_API_URL,
 }: A2ANetProviderProps): ReactElement {
     const agentRef = useRef<A2ANetAgent | null>(null);
     const getContextRef = useRef(getContext);
@@ -304,10 +310,12 @@ export function A2ANetProvider({
             error: state.error,
             retry,
             authenticatedFetch,
+            apiUrl,
             checkAndMintCredentials: checkAndMintCredentialsVoid,
         }),
         [
             agent,
+            apiUrl,
             authenticatedFetch,
             checkAndMintCredentialsVoid,
             copilotKitProps,

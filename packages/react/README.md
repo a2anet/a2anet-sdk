@@ -173,7 +173,7 @@ import { useA2ANetFeedback } from "@a2anet/react";
 import { CopilotChat } from "@copilotkit/react-core/v2";
 
 function Chat({ agentId, threadId }: { agentId: string; threadId: string }) {
-    const rate = useA2ANetFeedback(threadId);
+    const rate = useA2ANetFeedback();
 
     return (
         <CopilotChat

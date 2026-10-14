@@ -67,7 +67,7 @@ function FeedbackForm({
 export function Chat({ agentId, threadId }: { agentId: string; threadId: string }): ReactElement {
     const { agent } = useAgent({ agentId, updates: [] });
     const artifacts = useA2ANetArtifacts(agent, threadId);
-    const rate = useA2ANetFeedback(threadId);
+    const rate = useA2ANetFeedback();
     const [rated, setRated] = useState<Rated | null>(null);
 
     // Object.assign carries over the slot's static members, which its type requires.

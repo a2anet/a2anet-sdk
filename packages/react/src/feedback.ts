@@ -23,19 +23,19 @@ export type A2ANetRateMessage = (messageId: string, feedback: A2ANetFeedback) =>
  * shares a rating, and rating any of them again replaces it. Wire it to `CopilotChat`'s
  * thumbs, and call it again with the same value to add text the user writes afterwards.
  */
-export function useA2ANetFeedback(threadId: string): A2ANetRateMessage {
-    const { authenticatedFetch } = useA2ANet();
+export function useA2ANetFeedback(): A2ANetRateMessage {
+    const { agent, authenticatedFetch } = useA2ANet();
     const { copilotkit } = useCopilotKit();
 
     return useCallback<A2ANetRateMessage>(
         async (messageId, { value, rationale = null }) => {
             const { runtimeUrl } = copilotkit;
             if (!runtimeUrl) throw new Error("Runtime URL is not configured");
+            const run = agent?.runForMessage(messageId);
+            if (!run) throw new Error(`Message ${messageId} belongs to no known run`);
 
-            // By message rather than CopilotKit's `getRunIdForMessage`, whose run ids
-            // for a restored conversation are its own rather than the runtime's.
             const response = await authenticatedFetch(
-                `${runtimeUrl.replace(/\/+$/, "")}/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/feedback`,
+                `${runtimeUrl.replace(/\/+$/, "")}/threads/${encodeURIComponent(run.threadId)}/runs/${encodeURIComponent(run.runId)}/feedback`,
                 {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
@@ -46,6 +46,6 @@ export function useA2ANetFeedback(threadId: string): A2ANetRateMessage {
                 throw new Error(`A2A Net feedback request failed with ${response.status}`);
             }
         },
-        [authenticatedFetch, copilotkit, threadId],
+        [agent, authenticatedFetch, copilotkit],
     );
 }

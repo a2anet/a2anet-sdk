@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { CopilotKitProvider, useCopilotKit } from "@copilotkit/react-core/v2";
+import { CopilotKitProvider } from "@copilotkit/react-core/v2";
 import { cleanup, render, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 
@@ -20,13 +20,7 @@ const originalFetch = globalThis.fetch;
 let rate: A2ANetRateMessage | undefined;
 
 function Probe(): ReactNode {
-    const { copilotkit } = useCopilotKit();
-    // The run a message belongs to is recorded as the agent streams it; a test has no run.
-    copilotkit.getRunIdForMessage = (agentId, threadId, messageId) =>
-        agentId === "agent-1" && threadId === "thread-1" && messageId === "message-1"
-            ? "run-1"
-            : undefined;
-    rate = useA2ANetFeedback("agent-1", "thread-1");
+    rate = useA2ANetFeedback("thread-1");
     return null;
 }
 
@@ -79,7 +73,7 @@ describe("useA2ANetFeedback", () => {
 
         expect(requests).toHaveLength(1);
         expect(requests[0]?.url).toBe(
-            "https://runtime.a2anet.test/threads/thread-1/runs/run-1/feedback",
+            "https://runtime.a2anet.test/threads/thread-1/messages/message-1/feedback",
         );
         expect(requests[0]?.init?.method).toBe("PUT");
         expect(new Headers(requests[0]?.init?.headers).get("Authorization")).toBe(
@@ -91,12 +85,17 @@ describe("useA2ANetFeedback", () => {
         });
     });
 
-    test("refuses a message no run is known for", async () => {
-        globalThis.fetch = (async () =>
-            Response.json({ version: "1.0.0", agents: {} })) as typeof globalThis.fetch;
+    test("throws when the runtime refuses the feedback", async () => {
+        globalThis.fetch = (async (input: RequestInfo | URL) =>
+            String(input).endsWith("/info")
+                ? Response.json({ version: "1.0.0", agents: {} })
+                : Response.json(
+                      { detail: "Not found" },
+                      { status: 404 },
+                  )) as typeof globalThis.fetch;
         renderProbe();
         await waitFor(() => expect(rate).toBeDefined());
 
-        await expect(rate?.("message-2", { value: 1 })).rejects.toThrow("no known run");
+        await expect(rate?.("message-2", { value: 1 })).rejects.toThrow("failed with 404");
     });
 });

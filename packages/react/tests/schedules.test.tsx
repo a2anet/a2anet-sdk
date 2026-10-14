@@ -79,6 +79,10 @@ describe("useA2ANetSchedules", () => {
         await act(async () => {
             await current?.createSchedule({ message: "Weekly report", cron: "0 9 * * 1" });
         });
+        expect(current?.schedules.map((schedule) => schedule.id)).toEqual([
+            "schedule-2",
+            "schedule-1",
+        ]);
         await act(async () => {
             await current?.updateSchedule("schedule-1", { enabled: false });
         });

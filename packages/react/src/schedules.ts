@@ -105,7 +105,8 @@ export function useA2ANetSchedules(): UseA2ANetSchedulesResult {
     const createSchedule = useCallback(
         async (input: A2ANetScheduleInput): Promise<A2ANetSchedule> => {
             const created = await request<A2ANetSchedule>("", "POST", input);
-            setSchedules((previous) => [...previous, created]);
+            // A2A Net lists the newest first.
+            setSchedules((previous) => [created, ...previous]);
             return created;
         },
         [request],

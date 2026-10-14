@@ -111,7 +111,10 @@ describe("useA2ANetSchedules", () => {
     });
 
     test("reports why A2A Net refused a request", async () => {
-        globalThis.fetch = (async () =>
+        globalThis.fetch = (async (
+            _input: RequestInfo | URL,
+            _init?: RequestInit,
+        ): Promise<Response> =>
             Response.json(
                 { error: { code: "bad_request", message: "That cron never runs" } },
                 { status: 400 },

@@ -114,7 +114,10 @@ describe("useA2ANetFeedback", () => {
     });
 
     test("refuses a message no run is known for", async () => {
-        globalThis.fetch = (async () =>
+        globalThis.fetch = (async (
+            _input: RequestInfo | URL,
+            _init?: RequestInit,
+        ): Promise<Response> =>
             Response.json({ version: "1.0.0", agents: {} })) as typeof globalThis.fetch;
         renderProbe();
         await waitFor(() => expect(rate).toBeDefined());

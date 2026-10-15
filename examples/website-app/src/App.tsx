@@ -5,23 +5,36 @@
 /**
  * The page, standing in for your product.
  *
- * Two `CopilotChat`s — the page's own and a sidebar that opens and closes — sit
- * inside one `AssistantProvider`, so they are two views of the same conversation
- * rather than two conversations.
+ * Two chats — the page's own and a sidebar that opens and closes — sit inside one
+ * `AssistantProvider` and share a thread id, so they are two views of the same
+ * conversation rather than two conversations. The sidebar also holds the user's
+ * history and their scheduled chats.
  */
 
 import { A2ANetStatus, useA2ANet } from "@a2anet/react";
-import { CopilotChat } from "@copilotkit/react-core/v2";
 import { type ReactElement, useState } from "react";
 
 import { AssistantProvider } from "./AssistantProvider.js";
+import { Chat } from "./Chat.js";
+import { Schedules } from "./Schedules.js";
+import { Threads } from "./Threads.js";
+
+type Panel = "chat" | "history" | "schedules";
+
+const PANELS: Array<{ panel: Panel; label: string }> = [
+    { panel: "chat", label: "Chat" },
+    { panel: "history", label: "History" },
+    { panel: "schedules", label: "Schedules" },
+];
 
 function Page(): ReactElement {
     const { copilotKitProps, status, error, retry } = useA2ANet();
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [panel, setPanel] = useState<Panel>("chat");
+    const [threadId, setThreadId] = useState<string>(() => crypto.randomUUID());
 
     if (status === A2ANetStatus.Loading) return <p className="notice">Connecting…</p>;
-    if (status === A2ANetStatus.Error) {
+    if (status === A2ANetStatus.Error || !copilotKitProps.agent) {
         return (
             <p className="notice">
                 {error?.message ?? "Could not reach A2A Net"}{" "}
@@ -31,6 +44,12 @@ function Page(): ReactElement {
             </p>
         );
     }
+    const agentId = copilotKitProps.agent;
+
+    const openThread = (id: string): void => {
+        setThreadId(id);
+        setPanel("chat");
+    };
 
     return (
         <div className="layout">
@@ -41,12 +60,33 @@ function Page(): ReactElement {
                         {sidebarOpen ? "Hide sidebar" : "Show sidebar"}
                     </button>
                 </header>
-                <CopilotChat agentId={copilotKitProps.agent} />
+                <Chat agentId={agentId} threadId={threadId} />
             </main>
 
             {sidebarOpen && (
                 <aside className="sidebar">
-                    <CopilotChat agentId={copilotKitProps.agent} />
+                    <nav className="tabs">
+                        {PANELS.map((tab) => (
+                            <button
+                                key={tab.panel}
+                                type="button"
+                                aria-pressed={tab.panel === panel}
+                                onClick={() => setPanel(tab.panel)}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </nav>
+                    {panel === "chat" && <Chat agentId={agentId} threadId={threadId} />}
+                    {panel === "history" && (
+                        <Threads
+                            agentId={agentId}
+                            threadId={threadId}
+                            onSelect={openThread}
+                            onNew={() => openThread(crypto.randomUUID())}
+                        />
+                    )}
+                    {panel === "schedules" && <Schedules />}
                 </aside>
             )}
         </div>

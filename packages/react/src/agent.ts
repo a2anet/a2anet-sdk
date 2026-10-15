@@ -70,12 +70,23 @@ export class A2ANetAgent extends HttpAgent {
     private activeStream?: ActiveStream;
     private readonly cachedMessages = new Map<string, Message[]>();
     private readonly pendingRestores = new Map<string, Message[]>();
+    private readonly messageRuns = new Map<string, ActiveRun>();
     private readonly getContext?: () => A2ANetRunContext;
 
     /** Create an agent that reads the caller's current context on every run. */
     constructor({ getContext, ...config }: A2ANetAgentConfig) {
         super(config);
         this.getContext = getContext;
+    }
+
+    /**
+     * The thread and run that streamed a message, as the runtime recorded them.
+     *
+     * CopilotKit's `getRunIdForMessage` tags a replayed message with a run id of its own,
+     * so this reads the runtime's from the event stream instead.
+     */
+    runForMessage(messageId: string): { threadId: string; runId: string } | undefined {
+        return this.messageRuns.get(messageId);
     }
 
     /** Retain completed and streaming messages for fast in-session thread restoration. */
@@ -278,6 +289,10 @@ export class A2ANetAgent extends HttpAgent {
             const { threadId, runId } = event as RunStartedEvent;
             this.activeRun = { threadId, runId };
             return;
+        }
+        const { messageId } = event as BaseEvent & { messageId?: unknown };
+        if (typeof messageId === "string" && this.activeRun) {
+            this.messageRuns.set(messageId, this.activeRun);
         }
         if (
             (event.type === EventType.RUN_FINISHED || event.type === EventType.RUN_ERROR) &&

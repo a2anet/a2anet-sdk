@@ -39,18 +39,78 @@
                 margin: 0;
             }
             .page > :last-child,
-            .sidebar > * {
+            .sidebar > :last-child {
                 flex: 1;
                 min-height: 0;
             }
             .sidebar {
                 display: flex;
+                flex-direction: column;
                 width: 24rem;
                 max-width: 45vw;
                 border-left: 1px solid rgb(128 128 128 / 0.3);
             }
             .notice {
                 padding: 1.25rem;
+            }
+            .tabs {
+                display: flex;
+                gap: 0.5rem;
+                padding: 0.75rem 1.25rem;
+                border-bottom: 1px solid rgb(128 128 128 / 0.3);
+            }
+            .tabs [aria-pressed="true"] {
+                font-weight: 600;
+            }
+            .panel {
+                display: flex;
+                flex-direction: column;
+                overflow-y: auto;
+            }
+            .panel .tabs {
+                border-bottom: none;
+            }
+            .list {
+                list-style: none;
+                margin: 0;
+                padding: 0 1.25rem;
+            }
+            .list > li {
+                padding: 0.5rem 0;
+                border-bottom: 1px solid rgb(128 128 128 / 0.3);
+            }
+            .list [aria-current="true"] {
+                font-weight: 600;
+            }
+            .schedule p {
+                margin: 0 0 0.25rem;
+            }
+            .schedule small,
+            .schedule-form small {
+                display: block;
+            }
+            .error {
+                color: #d32f2f;
+            }
+            .actions {
+                display: flex;
+                justify-content: flex-end;
+                gap: 0.5rem;
+                margin-top: 0.5rem;
+            }
+            .feedback,
+            .schedule-form {
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+                padding: 0.75rem 1.25rem;
+            }
+            .feedback textarea,
+            .schedule-form textarea {
+                font: inherit;
+            }
+            .file {
+                margin: 0.25rem 0.5rem 0 0;
             }
         </style>
     </head>

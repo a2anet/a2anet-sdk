@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/a2anet/a2anet-sdk/compare/react-v0.3.0...react-v0.4.0) (2026-10-15)
+
+
+### Features
+
+* **react:** add feedback and scheduled chat hooks ([#5](https://github.com/a2anet/a2anet-sdk/issues/5)) ([1f2a314](https://github.com/a2anet/a2anet-sdk/commit/1f2a31498f31d578ef3bce88b3c5e390cb9383a2))
+
 ## [0.3.0](https://github.com/a2anet/a2anet-sdk/compare/react-v0.2.0...react-v0.3.0) (2026-09-23)
 
 
